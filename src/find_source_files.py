@@ -14,7 +14,6 @@ def find_lang_repos(language, search_term):
     temp = "https://api.github.com/search/repositories?q={}+in:file+language:{}&sort=stars&order=desc"
     url = temp.format(search_term, language)
     auth = (os.environ.get("GITHUB_USER"), os.environ.get("GITHUB_PASS"))
-    print auth
 
     r = requests.get(url, auth=auth)
     json = r.json()
@@ -32,8 +31,7 @@ def wait_until_ms(ms):
     time.sleep(float(to_sleep) / 1000)
     assert time.time() > ms 
 
-
-# busy wait during time that github imposes a rate limiting. 
+# busy wait during time that github imposes rate limiting. 
 def wait_for_rate_limiter(api_type, abuse_detector_wait_time=.25):
     url = "https://api.github.com/rate_limit"
     r = requests.get(url)
@@ -41,7 +39,7 @@ def wait_for_rate_limiter(api_type, abuse_detector_wait_time=.25):
 
     if json["resources"][api_type]["remaining"] > 0:
         time.sleep(abuse_detector_wait_time) # avoid bashing the endpoint too quickly
-                        # to get around the abuse detector
+                                             # to get around the abuse detector
         return
     else:
         wait_until_ms(json["resources"][api_type]["reset"])
@@ -87,5 +85,5 @@ if __name__ == "__main__":
     language = sys.argv[1]
     search_terms = sys.argv[2:]
     repo_tups = find_lang_repos(language, search_terms)
-    print repo_tups
-    # download_zip_archives(language, repo_tups)
+    download_zip_archives(language, repo_tups)
+
