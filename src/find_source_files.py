@@ -50,14 +50,13 @@ def get_archive_link(owner, repo):
     r = requests.get(url)
     print r.text
 
-def download_file(url, name, language):
-    language_path = os.path.expanduser("~/Dropbox/classes/Fall 2017/project/data/{}".format(language))
-    archives_path = language_path + "/" + "archives" # path to store the archives in the langauge directory
+def download_file(url, name, directory_path):
+    archives_path = directory_path + "/" + "archives" # path to store the archives in the langauge directory
     file_path = archives_path + "/" + name
 
     # Make the directories if needed
-    if not os.path.isdir(language_path):
-        os.mkdir(language_path)
+    if not os.path.isdir(directory_path):
+        os.mkdir(directory_path)
     if not os.path.isdir(archives_path):
         os.mkdir(archives_path)
 
@@ -68,13 +67,13 @@ def download_file(url, name, language):
             if chunk: # filter out keep-alive new chunks
                 f.write(chunk)
 
-def download_zip_archives(language, repo_tups):
+def download_zip_archives(repo_tups, download_path):
     archive = lambda x, y: "https://api.github.com/repos/{}/{}/zipball/master".format(x, y)
     archive_links = [archive(tup[0], tup[1]) for tup in repo_tups]
 
     for i, link in enumerate(archive_links):
         name = repo_tups[i][1] + ".zip"
-        download_file(link, name, language)
+        download_file(link, name, download_path)
         print "downloaded {}".format(name)
         wait_for_rate_limiter("core", 1)
 
@@ -83,7 +82,10 @@ if __name__ == "__main__":
         print "Usage: python find_source_files.py [Language] [Search Terms]^*"
 
     language = sys.argv[1]
+    download_path = os.path.expanduser(
+        "~/Dropbox/classes/Fall 2017/project/data/{}".format(language))
+
     search_terms = sys.argv[2:]
     repo_tups = find_lang_repos(language, search_terms)
-    download_zip_archives(language, repo_tups)
+    download_zip_archives(language, repo_tups,)
 
