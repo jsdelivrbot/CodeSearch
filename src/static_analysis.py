@@ -1,22 +1,53 @@
+# Author: Andrew Malta 2017
+# Code to extract variable, function, and class names from 
+# the source files in the AAN repos.
+
 import jedi
 import os
 import sys
 import json
 from collections import defaultdict
 
-
-def get_docstrings_tups(source):
-    tups = []
+# return the name of the parent of the defintion passed in
+# If it doesn't have a parent, return the empty string.
+def parent(definition):
     try:
-        defs = jedi.names(source)
+        return definition.parent().name
+    except Exception:
+        return ""
+
+# return the docstring of the corresponding
+# line, but catches some weird exceptions.
+def docstring(definition):
+    try:
+        return definition.docstring()
+    except Exception:
+        return ""
+
+
+# for a given string of python source code
+# return a list of tuples of the form
+# (variable type, variable name, docstring, parent name)
+# for each definition in the source code.
+def get_docstrings_tups(source):
+    objs = []
+    try:
+        defs = jedi.names(source, all_scopes = True)
     except Exception:
         return []
-    for definition in defs
+    for definition in defs:
         if definition.type in ["function", "class", "statement"]:
-            tups.append((definition.type, definition.name, definition.docstring()))
-    return tups
+            objs.append({
+                "type": definition.type,
+                "name": definition.name,
+                "docstring": docstring(definition),
+                "line": definition.line,
+                "parent": parent(definition)
+            })
+    return objs
 
 
+# n = 0
 if __name__ == "__main__":
     path = os.path.expanduser("~/Dropbox/classes/Fall 2017/project/data/AAN/source/")
     tokendict = defaultdict(list)
@@ -26,12 +57,13 @@ if __name__ == "__main__":
             if item.endswith(".py"):
                 with open(path + item, "r") as f:
                     source = f.read()
-                    for t in get_docstrings_tups(source):
-                        tokendict[path + item].append(t)
-
+                    for d in get_docstrings_tups(source):
+                       tokendict[path + item].append(d)
                 print "Finished reading tokens in {}".format(path + item)
+            # n += 1
+            # if n == 10000:
+            #     break
 
     output_path = path = os.path.expanduser("~/Dropbox/classes/Fall 2017/project/data/AAN/source_features.json")
     with open(output_path, "w") as f:
         f.write(json.dumps(tokendict))
-
