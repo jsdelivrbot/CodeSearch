@@ -47,23 +47,41 @@ def get_docstrings_tups(source):
     return objs
 
 
-# n = 0
+n = 0
+skip = set([11476])
+# begin = 11476
+# end = 15000
 if __name__ == "__main__":
     path = os.path.expanduser("~/Dropbox/classes/Fall 2017/project/data/AAN/source/")
     tokendict = defaultdict(list)
 
     for root, dirs, files in os.walk(path):
         for item in files:
+            if n in skip:
+                n += 1
+                continue
             if item.endswith(".py"):
                 with open(path + item, "r") as f:
                     source = f.read()
                     for d in get_docstrings_tups(source):
-                       tokendict[path + item].append(d)
+                        tokendict[path + item].append(d)
                 print "Finished reading tokens in {}".format(path + item)
-            # n += 1
-            # if n == 10000:
+            n += 1
+            # if n == end:
             #     break
-
-    output_path = path = os.path.expanduser("~/Dropbox/classes/Fall 2017/project/data/AAN/source_features.json")
+    path_str = "~/Dropbox/classes/Fall 2017/project/data/AAN/source_features.json"
+    output_path = path = os.path.expanduser(path_str)
     with open(output_path, "w") as f:
         f.write(json.dumps(tokendict))
+    # with open("/Users/andrewmalta/Dropbox/classes/Fall 2017/project/data/AAN/source/Newmu-dcgan_code-ee12b2d_train_cond_dcgan.py", "r") as f:
+    #     source = f.read()
+    #     for d in get_docstrings_tups(jedi, source):
+    #         tokendict["/Users/andrewmalta/Dropbox/classes/Fall 2017/project/data/AAN/source/Newmu-dcgan_code-ee12b2d_train_cond_dcgan.py"].append(d)
+    # print "finished one"
+    # import jedi as newjedi
+    # with open("/Users/andrewmalta/Dropbox/classes/Fall 2017/project/data/AAN/source/Newmu-dcgan_code-ee12b2d_train_uncond_dcgan.py", "r") as f:
+    #     source = f.read()
+    #     for d in get_docstrings_tups(newjedi, source):
+    #         tokendict["/Users/andrewmalta/Dropbox/classes/Fall 2017/project/data/AAN/source/Newmu-dcgan_code-ee12b2d_train_uncond_dcgan.py"].append(d)
+    # print "finished two"
+    
