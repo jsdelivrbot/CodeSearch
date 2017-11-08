@@ -48,9 +48,10 @@ def get_docstrings_tups(source):
 
 
 n = 0
-skip = set([11476])
-# begin = 11476
-# end = 15000
+skip = set([11476]) # A file that causes Jedi to hang for some reason
+                    # but this only happens when 11475 is immediately followed
+                    # by 11476.
+
 if __name__ == "__main__":
     path = os.path.expanduser("~/Dropbox/classes/Fall 2017/project/data/AAN/source/")
     tokendict = defaultdict(list)
@@ -67,21 +68,9 @@ if __name__ == "__main__":
                         tokendict[path + item].append(d)
                 print "Finished reading tokens in {}".format(path + item)
             n += 1
-            # if n == end:
-            #     break
+
+            
     path_str = "~/Dropbox/classes/Fall 2017/project/data/AAN/source_features.json"
     output_path = path = os.path.expanduser(path_str)
     with open(output_path, "w") as f:
         f.write(json.dumps(tokendict))
-    # with open("/Users/andrewmalta/Dropbox/classes/Fall 2017/project/data/AAN/source/Newmu-dcgan_code-ee12b2d_train_cond_dcgan.py", "r") as f:
-    #     source = f.read()
-    #     for d in get_docstrings_tups(jedi, source):
-    #         tokendict["/Users/andrewmalta/Dropbox/classes/Fall 2017/project/data/AAN/source/Newmu-dcgan_code-ee12b2d_train_cond_dcgan.py"].append(d)
-    # print "finished one"
-    # import jedi as newjedi
-    # with open("/Users/andrewmalta/Dropbox/classes/Fall 2017/project/data/AAN/source/Newmu-dcgan_code-ee12b2d_train_uncond_dcgan.py", "r") as f:
-    #     source = f.read()
-    #     for d in get_docstrings_tups(newjedi, source):
-    #         tokendict["/Users/andrewmalta/Dropbox/classes/Fall 2017/project/data/AAN/source/Newmu-dcgan_code-ee12b2d_train_uncond_dcgan.py"].append(d)
-    # print "finished two"
-    
