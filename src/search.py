@@ -25,7 +25,6 @@ def read_json_file():
         file_list = json.loads(f.read())
     
     return file_list
-    
 
 def search_for_name(keyword, json_dict, type_filter = None):
     matches = []
@@ -45,18 +44,47 @@ def search_for_docstring(keyword, json_dict, type_filter = None):
                 matches.append((file_name, line))
     return matches
 
+def search_for_both(keyword, json_dict, type_filter = None):
+    matches = []
+    for file_name in json_dict.keys():
+        for line in json_dict[file_name]:
+            right_type = (type_filter is None or line["type"] == type_filter)
+            if keyword in line["docstring"] or keyword in line["name"] and right_type:
+                matches.append((file_name, line))
+    return matches
+
+
+
+def find_matches(json_dict, query, search_type, type_filter=None):
+    if search_type == "both":
+        matches = search_for_both(query, json_dict, type_filter)
+    elif search_type == "docstring":
+        matches = search_for_docstring(query, json_dict, type_filter)
+    else:
+        matches = search_for_name(query, json_dict, type_filter)
+    
+    if len(matches):
+        ends = [infer_end_line(matches[i][0], matches[i][1])
+                    for i in xrange(len(matches))]
+        return [print_source(matches[i][0], matches[i][1]["line"], ends[i])
+                    for i in xrange(len(matches))]
+    else:
+        return []
+
 def read_source(file_name):
     try:
         with open(file_name, "r") as f:
             source = f.read()
-        return source
+            udata=source.decode("utf-8")
+            asciidata=udata.encode("ascii","ignore")
+        return asciidata
     except Exception:
         return ""
-    
 
 def print_source(file_name, line_start, line_end):
     source = read_source(file_name)
-    return "\n".join(source.split("\n")[line_start - 1 :line_end])
+    return (file_name, line_start, line_end,
+            "\n".join(source.split("\n")[line_start - 1 :line_end]))
         
 
 def get_indentation(line_string):
@@ -83,25 +111,6 @@ def infer_end_line(file_name, line_dict):
             return i - 1
         i += 1
     return i
-
-
-def find_matches_by_name(json_dict, search_term, type_filter=None):
-    matches = search_for_name(search_term, json_dict, type_filter)
-    if len(matches):
-        end =  infer_end_line(matches[0][0], matches[0][1])
-        return print_source(matches[0][0], matches[0][1]["line"], end)
-    else:
-        return "No Matches Found."
-
-    
-
-def find_matches_by_docstring(json_dict, search_term, type_filter=None):
-    matches = search_for_docstring(search_term, json_dict, type_filter)
-    if len(matches):
-        end =  infer_end_line(matches[0][0], matches[0][1])
-        return print_source(matches[0][0], matches[0][1]["line"], end)
-    else:
-        return "No Matches Found."
 
 if __name__ == "__main__":
     get_file_extensions()
