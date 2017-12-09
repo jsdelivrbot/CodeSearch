@@ -4,7 +4,8 @@
     </header>
     <body>
         {%for m in matches %}
-            <a href={{"/code/" + m[0]}}> {{m[0]}} </a>
+            Score: <b> {{m[4]}} </b>
+            <a href={{"/code?name=" + m[0]}}> {{m[0]}} </a> <br>
             Lines {{m[1]}} - {{m[2]}}
             <pre class="prettyprint">{{m[3]}}</pre> <br>
         {% endfor %}

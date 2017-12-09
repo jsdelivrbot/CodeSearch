@@ -10,20 +10,11 @@ from collections import defaultdict
 
 # return the name of the parent of the defintion passed in
 # If it doesn't have a parent, return the empty string.
-def parent(definition):
+def handler(func):
     try:
-        return definition.parent().name
+        return func()
     except Exception:
         return ""
-
-# return the docstring of the corresponding
-# line, but catches some weird exceptions.
-def docstring(definition):
-    try:
-        return definition.docstring()
-    except Exception:
-        return ""
-
 
 # for a given string of python source code
 # return a list of tuples of the form
@@ -36,13 +27,14 @@ def get_docstrings_tups(source):
     except Exception:
         return []
     for definition in defs:
-        if definition.type in ["function", "class", "statement"]:
+        if definition.type in ["function", "class"]:
             objs.append({
                 "type": definition.type,
                 "name": definition.name,
-                "docstring": docstring(definition),
+                "docstring": handler(definition.docstring),
                 "line": definition.line,
-                "parent": parent(definition)
+                "line_code": handler(definition.get_line_code),
+                "parent": handler(lambda: definition.parent().name)
             })
     return objs
 

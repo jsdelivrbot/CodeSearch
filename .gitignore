@@ -3,3 +3,4 @@ data/*
 *.env
 *.ipynb_checkpoints
 *.docx
+*.pkl

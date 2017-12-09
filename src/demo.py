@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 from flask import Flask, render_template, request, Markup
-from search import read_json_file, find_matches
+from search import *
 import re
-
-
+import pickle as pkl
+import cgi
 
 app = Flask(__name__)
-json_dict = read_json_file()
 
+with open("indices.pkl", "r") as f:
+    json_dict, source_map, functions, classes, files = pkl.load(f)
 
 def highlight_matches(words, s):
     output = ''
@@ -29,32 +30,46 @@ def highlight_matches(words, s):
     output += s[output_index:]
     return output
 
-
-@app.route('/', methods=['GET'])
+@app.route('/')
 def main_handler():
     return render_template("main.html")
+
+@app.route('/code')
+def code_handler():
+    name = request.args.get('name')
+    source = print_source(name)[-1]
+    return render_template("code.html", source=source)
+
 
 @app.route('/search')
 def search_handler():
     query = request.args.get('query')
     filter_option = request.args.get('filter')
-    search_type = request.args.get('search_type')
+    # search_type = request.args.get('search_type')
 
-    if filter_option == "all":
-        filter_option = None
+    if filter_option == "function":
+        iterable = functions
+    elif filter_option == "class":
+        iterable = classes
+    else:
+        iterable = files
 
-    results = find_matches(json_dict, query, search_type, filter_option)
-
+    results = find_matches(json_dict, query, iterable, source_map)[0:10]
 
     n = len(results)
     if n == 0:
         return render_template("results.html", code="No Matches Found.")
 
     code = []
+    scores = []
     for i in xrange(n):
-        code.append(Markup(highlight_matches(query.split(' '), results[i][3])))
+        tup = results[i][1]
+        scores.append(results[i][0])
+        source_code = cgi.escape(tup[3])
+        code.append(Markup(highlight_matches(query.split(' '), source_code)))
 
-    matches = [(results[i][0], results[i][1], results[i][2], code[i]) for i in xrange(n)]
+    matches = [(results[i][1][0], results[i][1][1], results[i][1][2], code[i], scores[i])
+                    for i in xrange(n)]
 
 
     return render_template("results.html", matches=matches)
