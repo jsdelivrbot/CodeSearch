@@ -4,6 +4,8 @@ import numpy as np
 from collections import Counter
 from collections import defaultdict
 import json
+import math
+import re
 
 PREFIX = "/Users/andrewmalta/Dropbox/classes/Fall 2017/project/data/AAN/"
 
@@ -27,7 +29,7 @@ def read_json_file():
     
     return file_list
 
-def extract_code_type(json_dict, code_type):
+def extract_code_type(json_dict, code_type, source_map):
     tuples = []
     for f in json_dict:
         for line in json_dict[f]:
@@ -37,34 +39,92 @@ def extract_code_type(json_dict, code_type):
 
 
     filtered_tuples = []
+    frequencies_map = {}
+    global_frequencies = defaultdict(int)
 
     for t in tuples:
         try:
             end_line = infer_end_line(t[0], t[3])
+            selection = "\n".join(source_map[t[0]][0].split('\n')[t[3] : end_line])
+            frequencies = gen_source_frequencies(selection)
+            
+            for word in frequencies:
+                global_frequencies[word] += 1
+
             new_tup = (t[0], t[1], t[2], t[3], end_line)
+            frequencies_map[new_tup] = frequencies
             filtered_tuples.append(new_tup)
         except Exception:
             pass
 
-
-    return filtered_tuples
+    return filtered_tuples, (frequencies_map, global_frequencies)
 
 def extract_file_tuples(source_map):
     tuples = []
+    frequencies_map = {}
+    global_frequencies = defaultdict(int)
 
     for f in source_map:
-        end_line = len(source_map[f].split('\n'))
-        tuples.append((f, "file", f, 0, end_line))
+        end_line = len(source_map[f][0].split('\n'))
+        
 
-    return tuples
+        new_tup = (f, "file", f, 0, end_line)
+        frequencies_map[new_tup] = source_map[f][1]
+        for word in source_map[f][1]:
+            global_frequencies[word] += 1
+
+        tuples.append(new_tup)
+
+    return tuples, (frequencies_map, global_frequencies)
+
+def gen_source_frequencies(text):
+    results = []
+    tokens = text.split()
+
+    replace_chars = ",()\"\'_-[]{}:;./\\=*#%^"
+    for t in tokens:
+        new_str = ""
+        for c in t:
+            if c in replace_chars:
+                new_str += ' '
+            else:
+                new_str += c
+
+        new_tokens = new_str.split(' ')
+        results += new_tokens
+
+    final_results = []
+    for t in results:
+        un_camel_case = [val.lower() for val in re.sub('([a-z])([A-Z])', r'\1 \2', t).split()]
+        final_results += un_camel_case
+        final_results += t
+
+    return Counter(final_results)
 
 def build_source_map(json_dict):
     source_map = {}
 
     for f in json_dict:
-        source_map[f] = read_source(f)
+        source = read_source(f)
+        frequencies = gen_source_frequencies(source)
+        source_map[f] = (source, frequencies)
 
     return source_map
+
+def build_docstring_map(json_dict, tuples):
+    docstring_map = {}
+
+    for t in tuples:
+        file_name = t[0]
+        for line in json_dict[file_name]:
+            name = t[2]
+            if line["name"] == name:
+                docstring = line["docstring"]
+                frequencies = gen_source_frequencies(docstring)
+                docstring_map[t] = (docstring, frequencies)
+                break
+
+    return docstring_map
 
 def frequency_helper(query_words, text):
     frequency_counts = [0] * len(query_words)
@@ -75,37 +135,59 @@ def frequency_helper(query_words, text):
     return tuple(frequency_counts)
 
 
-def extract_frequencies(query, iterable, source_map):
-    matches = {}
-    
-    for tup in iterable:
-        # get the selected piece of code to search
-        
-        selection = "\n".join(source_map[tup[0]].split('\n')[tup[3] : tup[4]])
-        frequency = frequency_helper(query, selection)
-        # print tup
-        # print selection
-        # print frequency
+def filter_frequencies(query, iterable, iterable_frequencies, content_map, using_source_map):
+    matches = set()
+    for f in iterable:
+        counts = [0] * len(query)
+        # if using_source_map:
+        #     frequencies = content_map[f[0]][1]
+        # else:
+        #     frequencies = content_map[f][1]
+        frequencies = iterable_frequencies[f]
 
-        if sum(frequency):
-            matches[tup] = frequency
+        for i, word in enumerate(query):
+            if word in frequencies:
+                counts[i] = frequencies[word]
+
+        if sum(counts):
+            matches.add(f)
 
     return matches
 
-def score_matches(query, matches):
+def score_matches(query, n, matches, iterable_frequencies, global_frequencies, content_map, using_source_map):
     scores = {}
+
     for m in matches:
-        length = m[4] - m[3]
-        scores[m] = sum(matches[m]) / float(length)
+        name_score = 0.0
+        frequencies = iterable_frequencies[m]
+
+        tf_normalizer = .75 * len(frequencies) + .25 * (m[4] - m[3])
+        if m[4] - m[3] == 0:
+            continue
+
+        name_freq = gen_source_frequencies(m[2])
+        tfidf_score = 0.0
+        for word in query:
+            if word in name_freq:
+                name_score += 1.0
+
+            if word in frequencies:
+                # avoid division by zero in either case here
+                tf_score = frequencies[word] / float(tf_normalizer)
+                idf_score = math.log(float(n) / (1 + global_frequencies[word]))
+                tfidf_score += tf_score * idf_score
+
+        scores[m] = name_score + tfidf_score
+
     return scores
 
 
-def find_matches(json_dict, query, iterable, source_map):
+def find_matches(json_dict, query, iterable, frequencies_ds, content_map, using_source_map):
     query_split = list(set(query.split(' ')))
+    iterable_frequencies, global_frequencies = frequencies_ds
 
-    matches = extract_frequencies(query_split, iterable, source_map)
-    scores = score_matches(query, matches)
-
+    matches = filter_frequencies(query_split, iterable, iterable_frequencies, content_map, using_source_map)
+    scores = score_matches(query, len(iterable), matches, iterable_frequencies, global_frequencies, content_map, using_source_map)
 
     sortable = [(tup, scores[tup]) for tup in scores]
     results = sorted(sortable, key = lambda x: x[1], reverse=True)

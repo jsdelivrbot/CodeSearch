@@ -8,13 +8,15 @@ import cgi
 app = Flask(__name__)
 
 with open("indices.pkl", "r") as f:
-    json_dict, source_map, functions, classes, files = pkl.load(f)
+    (json_dict, source_map, func_doc_map, class_doc_map,
+     functions, functions_freq, classes, classes_freq,
+     files, files_freq) = pkl.load(f)
 
 def highlight_matches(words, s):
     output = ''
     pairs = []
     for word in words:
-        for m in re.finditer(word, s):
+        for m in re.finditer(word, s, flags=re.IGNORECASE):
             pairs.append((m.start(), m.end()))
 
     pairs = sorted(pairs, key = lambda x: x[0])
@@ -37,6 +39,7 @@ def main_handler():
 @app.route('/code')
 def code_handler():
     name = request.args.get('name')
+    name = name.replace('+', ' ')
     source = print_source(name)[-1]
     return render_template("code.html", source=source)
 
@@ -45,31 +48,55 @@ def code_handler():
 def search_handler():
     query = request.args.get('query')
     filter_option = request.args.get('filter')
-    # search_type = request.args.get('search_type')
+    search_type = request.args.get('search_type')
 
+    if filter_option == "file" and search_type == "docstring":
+        return render_template("error.html", error="Cant search file by docstring.")
+
+    using_source_map = False
     if filter_option == "function":
         iterable = functions
+        iterable_freq = functions_freq
     elif filter_option == "class":
         iterable = classes
-    else:
+        iterable_freq = classes_freq
+    elif filter_option == "file":
         iterable = files
+        iterable_freq = files_freq
+    else:
+        return render_template("error.html", error="Illegal filter type")
 
-    results = find_matches(json_dict, query, iterable, source_map)[0:10]
+    if search_type == "code":
+        content_map = source_map
+        using_source_map = True
+    elif search_type == "docstring":
+        content_map = func_doc_map if filter_option == "function" else class_doc_map
+    else:
+        return render_template("error.html", error="Illegal search type")
+
+
+    results = find_matches(json_dict, query, iterable, iterable_freq, content_map, using_source_map)
+    results = results[0:10]
 
     n = len(results)
     if n == 0:
-        return render_template("results.html", code="No Matches Found.")
+        return render_template("error.html", error="No Matches Found")
 
+    code_prefix = "/Users/andrewmalta/Dropbox/classes/Fall 2017/project/data/AAN/"
     code = []
     scores = []
+
     for i in xrange(n):
         tup = results[i][1]
         scores.append(results[i][0])
         source_code = cgi.escape(tup[3])
         code.append(Markup(highlight_matches(query.split(' '), source_code)))
 
-    matches = [(results[i][1][0], results[i][1][1], results[i][1][2], code[i], scores[i])
-                    for i in xrange(n)]
+
+    normalize_path = lambda path: path.replace(' ', '+')
+
+    matches = [(normalize_path(results[i][1][0]), results[i][1][1],
+                results[i][1][2], code[i], scores[i]) for i in xrange(n)]
 
 
     return render_template("results.html", matches=matches)

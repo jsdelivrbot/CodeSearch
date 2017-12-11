@@ -3,15 +3,12 @@
     </header>
     <body>
         <form action="/search">
-            <input type="radio" name="filter" value="all" checked> all<br>
+            <input type="radio" name="filter" value="file" checked> file<br>
             <input type="radio" name="filter" value="function"> function<br>
-            <input type="radio" name="filter" value="class"> class<br>
-            <input type="radio" name="filter" value="variable"> variable <br> <br>
+            <input type="radio" name="filter" value="class"> class<br> <br>
 
-            <input type="radio" name="search_type" value="both" checked> both <br>
             <input type="radio" name="search_type" value="docstring"> docstring <br>
             <input type="radio" name="search_type" value="code"> code <br> <br>
-
 
             <input type="input" name="query">
             <input type="submit" value="Submit">
