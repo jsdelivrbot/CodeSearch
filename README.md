@@ -1,5 +1,6 @@
 # Python Source Code Search on AAN
 Author: Andrew Malta
+
 Advisor: Dragomir Radev
 
 ## Abstract
@@ -7,10 +8,10 @@ There exists a vast amount of source code publicly available on Github; however,
 
 ## Data Collection
 A bulk of the initial work in the project was coming up with a feasible way to find a set of high quality
-python source code to power the search tool.  At first I attempted to leverage github's search API
+python source code to power the search tool.  At first I attempted to leverage Github's search API
 to try and filter for source repositories that were written in python and had been forked and starred frequently.  This is a bit tricky for a number of reasons.  First, Github did not allow empty search
 queries, which meant that I had to bias the source code I was extracting by the search terms that I
-used.  Second this API was highly rate limited and getting a reasonable amount of source code would have taken a long time.  This lead me to search for different ways to find source repositories to extract source code from.  In this search, my advisor pointed me toward a resource that his lab had worked on called AAN (All About NLP), a search engine with curated tutorials, papers, libraries, and, most importantly for me, links to github repositories.  Next, using these links to github repositories, my next task was to figure out a way to extract all of the source code from each of the repositories.  My 
+used.  Second this API was highly rate limited and getting a reasonable amount of source code would have taken a long time.  This led me to search for different ways to find source repositories to extract source code from.  In this search, my advisor pointed me toward a resource that his lab had worked on called AAN (All About NLP), a search engine with curated tutorials, papers, libraries, and, most importantly for me, links to Github repositories.  Next, using these links to Github repositories, my next task was to figure out a way to extract all of the source code from each of the repositories.  My 
 first, somewhat misguided, attempt at this was to do a recursive web scrape on the directory structure
 of the repository.
 
@@ -52,9 +53,9 @@ def get_repo_tree_scrape(owner, repo, path, recursive=True):
 ```
 
 The above code, while it works in theory, runs into the automatic abuse flagger on Github's API
-and it required me to go back to the drawing board.  After a bit of searching, I found a github
-API endpoint that was not listed in the API documentation for downloading archive files of the
-repository and used the following code to obtain the archive of each repository listed on AAN.
+and it required me to go back to the drawing board.  After a bit of searching, I found a Github
+API endpoint, that was not listed in the API documentation, for downloading archive files of
+repositories and used the following code to obtain the archive of each repository listed on AAN.
 
 ```python
 def download_zip_archives(repo_tups, download_path):
@@ -71,16 +72,16 @@ def download_zip_archives(repo_tups, download_path):
 
 Using these archives of the repositories I did the recursive search for the source files 
 locally on my machine, and successfully extracted the python source files required for the project. Out
-of the 465 github repositories linked to on AAN, I extracted 10138 python source files. 
+of the 465 Github repositories linked to on AAN, I extracted 10138 python source files. 
 
 ## Static Analysis
-Now that the code was extracted, what was next to do was to extract useful structures from the code such as classes and function definitions.  With the help of a very useful static analysis library, Jedi, I identified all of the class, function, and variable definitions in each python file and stored meta-data
-about them in a json file used to create the requisite indices for the search.  While Jedi was 
+Now that the code was extracted, what I had to do next was to extract useful structures from the code such as classes and function definitions.  With the help of a very useful static analysis library, Jedi, I identified all of the class, function, and variable definitions in each python file and stored meta-data
+about them in a json file.  While Jedi was 
 very helpful in extracting the beginning line of functions and class declarations, it did not provide where these declarations ended in the code.  At first I attempted to determine where these definitions ended using parent scope pointers that Jedi provided by building a tree and recursively passing up where
 each parent scope ended. While this method worked for the most part, it ran into problems since the way that Jedi
 assigned the parent pointers was not entirely consistent, causing code fragments to get cut off in the middle. 
 
-I worked around this problem by exploiting the fact that indentation in python source code is not only required, but it also is the way that the compiler identifies where a code block ends.  By using this property, I was able to infer where the end line of classes and functions were by computing when the indentation in the source code returned to the indentation in the starting line.
+I worked around this problem by exploiting the fact that indentation in python source code is not only required, but it also is the way that the interpreter identifies where a code block ends.  By using this property, I was able to infer where the end line of classes and functions were by computing when the indentation in the source code returned to the indentation in the starting line.
 
 ```python
 def get_indentation(line_string):
@@ -114,37 +115,37 @@ def infer_end_line(file_name, line_num):
 Using these 10138 python source files, I extracted the source code and docstrings of 84317 functions and 15127 classes.
 
 ## Search
- I ranked the search results using a variant of the popular tf-idf (term frequency–inverse document frequency) statistic in the information retrieval community.  In particular to deal with the difference in length of the target documents, I normalize the term-frequency statistic inversely proportional to the number of lines of code in the selection.  For each term in the query I calculate a normalized term-frequency and multiply it by the log of the inverse document frequency of the term.  Our ranking of the query relevance to the document is then the sum of these products. Lastly, due to the fact that the name of the function, class, or file usually holds increased relevance to the task that it is performing, the scoring function awards higher scores to code with matches in the name of the source object. The following code was used for scoring
+ I ranked the search results using a variant of the popular tf-idf (term frequency–inverse document frequency) statistic in the information retrieval community.  In particular to deal with the difference in length of the target documents, I normalize the term-frequency statistic inversely proportional to the number of lines of code in the selection and the number of unique terms that I compute for each code fragment.  For each term in the query I calculate a normalized term-frequency and multiply it by the log of the inverse document frequency of the term.  Our ranking of the query relevance to the document is then the sum of these products. Lastly, due to the fact that the name of the function, class, or file usually holds increased relevance to the task that it is performing, the scoring function awards higher scores to code with matches in the name of the source object. The following code was used for scoring
 
 ```python
-def score_matches(query, n, matches, iterable_frequencies, global_frequencies,
-                  content_map, using_source_map):
-scores = {}
+def score_matches(query, n, matches, iterable_frequencies,
+  global_frequencies, content_map, using_source_map):
 
-for m in matches:
-    name_score = 0.0
-    frequencies = iterable_frequencies[m]
+    scores = {}
+    for m in matches:
+        name_score = 0.0
+        frequencies = iterable_frequencies[m]
 
-    num_lines = m[4] - m[3]
-    if num_lines == 0:
-        continue
+        tf_normalizer = .75 * len(frequencies) + .25 * (m[4] - m[3])
+        if m[4] - m[3] == 0:
+            continue
 
-    name_freq = gen_source_frequencies(m[2])
-    tfidf_score = 0.0
-    for word in query:
-        if word in name_freq:
-            name_score += 1.0
+        name_freq = gen_source_frequencies(m[2])
+        tfidf_score = 0.0
+        for word in query:
+            if word in name_freq:
+                name_score += 1.0
 
-        if word in frequencies:
-            # avoid division by zero in either case here
-            tf_score = frequencies[word] / float(num_lines)
-            idf_score = math.log(float(n) / (1 + global_frequencies[word]))
-            tfidf_score += tf_score * idf_score
+            if word in frequencies:
+                # avoid division by zero in either case here
+                tf_score = frequencies[word] / float(tf_normalizer)
+                idf_score = math.log(float(n) / (1 + global_frequencies[word]))
+                tfidf_score += tf_score * idf_score
 
-    scores[m] = name_score + tfidf_score
+        scores[m] = name_score + tfidf_score
 
-return scores
- ```
+    return scores
+```
 
  A number of indices were required to make the matching and scoring efficient enough to run quickly.  Across the dataset I computed term frequencies for each piece of source code in the dataset and additionally kept track of the number of pieces of source code each term appeared in to enable the inverse document frequency statistic.  These indices had to be collected separately across the three different filtering types as to not dilute the inverse document frequency calculations with potential matches that were being filtered.  
 
@@ -153,7 +154,7 @@ return scores
  their constituent parts in the case that the variable name was written in camel case. It is worth
  nothing that this approach does leave in the python key words like "for", "in", and "while", but
  as I am not using the total count of the tokens to normalize the term-frequency statistic, it 
- does not effect the scoring calculation.
+ only marginally affects the scoring calculation.
 
 ## Demo
 Putting the pieces together, I built an web interface in Flask which allows the user to search through
@@ -254,7 +255,7 @@ Some code omitted due to length
 ## Conclusion
 I think that with a bit more work this kind of tool can be extremely useful for new and experienced
 programmers alike.  I can see two primary use cases for a tool like this:
-* A place to search for example code before heading to stack overflow to ask why your code is not working.
+* A place to search for example code before heading to stack overflow to ask why your code isn't working.
 * A tool to explore a new topic that you are interested to learn more about.
 
 While the tool as it stands does return useful results in a number of cases, there are a number of things I can add to make the tool return more relevant results.  One thing that I worked on that I believe could be improved is balancing the term frequency with the length of the document better.  I experimented with normalizing with the line lengths and I found that this method penalized longer documents too much, which resulted in the top results being just a few lines.  I also tried normalizing by the number of unique terms in the document, but this had the opposite effect of not penalizing the very long code fragments enough, as this statistic does not quite scale linearly with the length of the document.  I settled on a hybrid approach of the two methods, but finding the right balance between the two will require a bit more trial and error.
